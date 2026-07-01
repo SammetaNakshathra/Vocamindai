@@ -1,64 +1,104 @@
 import gradio as gr
 import whisper
 import os
+import asyncio
+import edge_tts
 from groq import Groq
-from elevenlabs.client import ElevenLabs
 
-# Load models
+# -----------------------------
+# Load Whisper model
+# -----------------------------
 model = whisper.load_model("base")
 
-# API KEYS (from Hugging Face Secrets)
+# -----------------------------
+# Load Groq API
+# -----------------------------
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-tts_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
 
-# AI function
+# -----------------------------
+# AI Response Function
+# -----------------------------
 def get_ai_response(text):
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[
-            {"role": "system", "content": "You are VocaMind AI. Reply in 1-2 short sentences."},
-            {"role": "user", "content": text}
+            {
+                "role": "system",
+                "content": "You are VocaMind AI. Reply in 1-2 short sentences."
+            },
+            {
+                "role": "user",
+                "content": text
+            }
         ]
     )
+
     return response.choices[0].message.content
 
-# Text to speech
+
+# -----------------------------
+# Text-to-Speech using Edge-TTS
+# -----------------------------
 def text_to_speech(text):
-    audio = tts_client.text_to_speech.convert(
-        voice_id="21m00Tcm4TlvDq8ikWAM",
-        model_id="eleven_multilingual_v2",
-        text=text
-    )
+    output_file = "reply.mp3"
 
-    file_path = "reply.mp3"
-    with open(file_path, "wb") as f:
-        for chunk in audio:
-            f.write(chunk)
+    async def generate():
+        communicate = edge_tts.Communicate(
+            text=text,
+            voice="en-US-AriaNeural"
+        )
+        await communicate.save(output_file)
 
-    return file_path
+    asyncio.run(generate())
 
-# Full pipeline
+    return output_file
+
+
+# -----------------------------
+# Complete Voice Assistant
+# -----------------------------
 def vocamind(audio_file):
+    if audio_file is None:
+        return "No audio received.", "", None
 
-    result = model.transcribe(audio_file)
-    user_text = result["text"]
+    try:
+        # Speech to Text
+        result = model.transcribe(audio_file)
+        user_text = result["text"].strip()
 
-    reply_text = get_ai_response(user_text)
+        if not user_text:
+            return "Couldn't recognize speech.", "", None
 
-    audio_path = text_to_speech(reply_text)
+        # AI Reply
+        reply_text = get_ai_response(user_text)
 
-    return user_text, reply_text, audio_path
+        # Voice Reply
+        audio_path = text_to_speech(reply_text)
 
-# UI
+        return user_text, reply_text, audio_path
+
+    except Exception as e:
+        return f"Error: {str(e)}", "", None
+
+
+# -----------------------------
+# Gradio UI
+# -----------------------------
 demo = gr.Interface(
     fn=vocamind,
-    inputs=gr.Audio(sources=["microphone"], type="filepath"),
+    inputs=gr.Audio(
+        sources=["microphone"],
+        type="filepath"
+    ),
     outputs=[
         gr.Textbox(label="You said"),
         gr.Textbox(label="AI Reply"),
         gr.Audio(label="Voice Reply")
     ],
-    title="VocaMind AI Voice Assistant"
+    title="🎤 VocaMind AI Voice Assistant",
+    description="Speak into the microphone and get an AI voice response."
 )
 
-demo.launch()
+if __name__ == "__main__":
+    demo.launch()
+    
