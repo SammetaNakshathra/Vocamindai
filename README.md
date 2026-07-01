@@ -5,6 +5,8 @@ VocaMind AI is an end-to-end conversational voice assistant that enables natural
 The project was built to demonstrate the complete Voice AI pipeline used in modern conversational systems such as AI assistants, customer support bots, and voice-enabled applications.
 
 VocaMind AI integrates Speech Recognition, Prompt Engineering, Generative AI, and Text-to-Speech synthesis into a single interactive web application.
+
+
 LINK : https://huggingface.co/spaces/Naksh07/vocamindai
 
 
